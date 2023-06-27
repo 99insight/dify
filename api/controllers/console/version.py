@@ -19,7 +19,8 @@ class VersionApi(Resource):
         args = parser.parse_args()
         check_update_url = current_app.config['CHECK_UPDATE_URL']
 
-        if not check_update_url:
+        if True:
+        # if not check_update_url:
             return {
                 'version': '0.0.0',
                 'release_date': '',

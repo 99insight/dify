@@ -64,7 +64,6 @@ const translation = {
     status: 'beta',
     explore: 'Explore',
     apps: 'Build Apps',
-    plugins: 'Plugins',
     pluginsTips: 'Integrate third-party plugins or create ChatGPT-compatible AI-Plugins.',
     datasets: 'Datasets',
     datasetsTips: 'COMING SOON: Import your own text data or write data in real-time via Webhook for LLM context enhancement.',

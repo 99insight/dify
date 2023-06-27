@@ -64,7 +64,6 @@ const translation = {
     status: 'beta',
     explore: '探索',
     apps: '构建应用',
-    plugins: '插件',
     pluginsTips: '集成第三方插件或创建与 ChatGPT 兼容的 AI 插件。',
     datasets: '数据集',
     datasetsTips: '即将到来: 上传自己的长文本数据，或通过 Webhook 集成自己的数据源',
