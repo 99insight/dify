@@ -1,10 +1,12 @@
 import logging
 import re
-from typing import Optional, List, Tuple, cast
+from typing import Optional, List, Tuple, cast,Union,Literal,AbstractSet,Collection
 
 from langchain.document_loaders.base import BaseLoader
 from langchain.document_loaders.helpers import detect_file_encodings
 from langchain.schema import Document
+
+import tiktoken
 
 logger = logging.getLogger(__name__)
 
@@ -64,22 +66,41 @@ def split_block(content:str):
     content = re.split(sp,content)
     return content
 
-def traverse_tree(node: TreeNode, depth: int = 0,length:int=0,product_info:str='',md_end_info:list=[]):
+def text_length(text:str,
+           encoding_name: str = "gpt2",
+           allowed_special: Union[Literal["all"], AbstractSet[str]] = set(),
+           disallowed_special: Union[Literal["all"], Collection[str]] = "all"):
+
+    enc = tiktoken.get_encoding(encoding_name)
+    def _tiktoken_encoder(text: str) -> int:
+        return len(
+            enc.encode(
+                text,
+                allowed_special=allowed_special,
+                disallowed_special=disallowed_special,
+            )
+        )
+
+    return _tiktoken_encoder(text)
+
+
+def traverse_tree(node: TreeNode, depth: int = 0,product_info:str='',md_end_info:list=[]):
     if node.children == []:
-        product_info+='#' * node.level + ' ' + node.title + '\n'
-        if len(product_info+node.content)<1000:
-            return product_info+node.content.replace('\t','')+'\n\n'
+        if text_length(product_info+'#' * node.level + ' ' + node.title + '\n'+node.content)<1000:
+            return [product_info,'#' * node.level + ' ' + node.title + '\n'+node.content.replace('\t','')+'\n\n']
         else:
             contents = split_block(node.content.replace('\t',''))
-            new_pro = product_info
-            new_pro_cacha = ''
+            new_pro = '#' * node.level + ' '+node.title + '\n'
+            new_pro_cacha = []
             for content in contents:
-                if len(new_pro+content)<1000:
+                if text_length(product_info+new_pro+content)<1000:
                     new_pro+=content+'\n'
                 else:
-                    new_pro_cacha += new_pro+'\n'
-                    new_pro = product_info
-            new_pro_cacha += new_pro
+                    new_pro_cacha +=[product_info,new_pro+'\n']
+                    new_pro = '#' * node.level + ' ' +node.title + '\n'+ content+'\n'
+
+            new_pro_cacha += [product_info, new_pro+'\n']
+            # print(new_pro_cacha)
             return new_pro_cacha
 
     else:
@@ -88,14 +109,17 @@ def traverse_tree(node: TreeNode, depth: int = 0,length:int=0,product_info:str='
             info = node.content.replace('\n','')+'\n\n'
             product_info+=str(title+info)
         length=len(product_info)
-
+        pass
     for child in node.children:
-        info = traverse_tree(child, depth + 1,length,product_info,md_end_info)
+        info = traverse_tree(child, depth + 1,product_info,md_end_info)
         if child.children==[]:
-            md_end_info.append(info)
+            if len(info)==1:
+                md_end_info.append(info)
+            else:
+                for i in info:
+                    md_end_info.append(i)
         else:
             md_end_info=info
-
     return md_end_info
 
 
@@ -152,48 +176,23 @@ class MarkdownLoader(BaseLoader):
 
         """
         markdown_tups: List[Tuple[Optional[str], str]] = []
-        mdtree = build_tree(markdown_text)
-        current_text = traverse_tree(mdtree)
 
-        # lines = markdown_text.split("\n")
+        mdtree = build_tree(markdown_text)
+        lines = traverse_tree(mdtree)
+
 
         current_header = None
-        # current_text = ""
-        #
-        # for line in lines:
-        #     header_match = re.match(r"^#+\s", line)
-        #     if header_match:
-        #         if current_header is not None:
-        #             markdown_tups.append((current_header, current_text))
-        #
-        #         current_header = line
-        #         current_text = ""
-        #     else:
-        #         current_text += line + "\n"
 
-        for line in current_text:
-            header_match = re.match(r"^#+\s", line)
-            if header_match:
-                if current_header is not None:
-                    markdown_tups.append((current_header, current_text))
+        for line in lines:
 
+            if current_header == None and line != None:
                 current_header = line
-                current_text = ""
             else:
-                current_text += line + "\n"
-        markdown_tups.append((current_header, current_text))
+                current_text = line
+                markdown_tups.append((current_header, current_text))
+                current_header = None
 
-        if current_header is not None:
-            # pass linting, assert keys are defined
-            markdown_tups = [
-                (re.sub(r"#", "", cast(str, key)).strip(), re.sub(r"<.*?>", "", value))
-                for key, value in markdown_tups
-            ]
-        else:
-            markdown_tups = [
-                (key, re.sub("\n", "", value)) for key, value in markdown_tups
-            ]
-
+        logger.info(markdown_tups)
         return markdown_tups
 
     def remove_images(self, content: str) -> str:
