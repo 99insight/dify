@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import defaultdict
 from typing import Any, List, Optional, Dict
 
@@ -93,9 +94,12 @@ class KeywordTableIndex(BaseIndex):
         search_kwargs = kwargs.get('search_kwargs') if kwargs.get('search_kwargs') else {}
         k = search_kwargs.get('k') if search_kwargs.get('k') else 4
 
-        sorted_chunk_indices = self._retrieve_ids_by_query(keyword_table, query, k)
+        sorted_chunk_indices = self._retrieve_ids_by_query(keyword_table, query, k)[0]
+        sorted_chunk_indices_point = self._retrieve_ids_by_query(keyword_table, query, k)[1]
+
 
         documents = []
+        Nonum = k
         for chunk_index in sorted_chunk_indices:
             segment = db.session.query(DocumentSegment).filter(
                 DocumentSegment.dataset_id == self.dataset.id,
@@ -109,8 +113,10 @@ class KeywordTableIndex(BaseIndex):
                         "doc_id": chunk_index,
                         "document_id": segment.document_id,
                         "dataset_id": segment.dataset_id,
+                        "score": sorted_chunk_indices_point[k-Nonum]
                     }
                 ))
+            Nonum-=1
 
         return documents
 
@@ -184,12 +190,15 @@ class KeywordTableIndex(BaseIndex):
         keyword_table_handler = JiebaKeywordTableHandler()
         keywords = keyword_table_handler.extract_keywords(query)
 
+        baselength = len(keywords)
+
         # go through text chunks in order of most matching keywords
         chunk_indices_count: Dict[str, int] = defaultdict(int)
         keywords = [keyword for keyword in keywords if keyword in set(keyword_table.keys())]
+
         for keyword in keywords:
             for node_id in keyword_table[keyword]:
-                chunk_indices_count[node_id] += 1
+                chunk_indices_count[node_id] += float(1/baselength)
 
         sorted_chunk_indices = sorted(
             list(chunk_indices_count.keys()),
@@ -197,7 +206,8 @@ class KeywordTableIndex(BaseIndex):
             reverse=True,
         )
 
-        return sorted_chunk_indices[: k]
+
+        return [sorted_chunk_indices[: k],sorted(chunk_indices_count.values(),reverse=True)]
 
     def _update_segment_keywords(self, node_id: str, keywords: List[str]):
         document_segment = db.session.query(DocumentSegment).filter(DocumentSegment.index_node_id == node_id).first()
