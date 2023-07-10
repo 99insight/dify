@@ -18,7 +18,7 @@ class DatasetTool(BaseTool):
     """Tool for querying a Dataset."""
 
     dataset: Dataset
-    k: int = 2
+    k: int = 10
 
     def _run(self, tool_input: str) -> str:
         if self.dataset.indexing_technique == "economy":
@@ -52,7 +52,7 @@ class DatasetTool(BaseTool):
                 tool_input,
                 search_type='similarity_score_threshold',
                 search_kwargs={
-                    'k': self.k
+                    'k': 10
                 }
             )
 
@@ -63,7 +63,7 @@ class DatasetTool(BaseTool):
                 )
             )
 
-            documents_economy = kw_table_indexs.search(tool_input, search_kwargs={'k': self.k})
+            documents_economy = kw_table_indexs.search(tool_input, search_kwargs={'k': 10})
 
             documents_es=[]
             for kw_table in documents_economy:
@@ -103,7 +103,7 @@ class DatasetTool(BaseTool):
                             "score": 0.4 * document_e.metadata.get('score')
                         }
                     ))
-
+                    
             documents = sorted(
                 documents,
                 key=lambda x: x.metadata.get('score'),
@@ -112,7 +112,7 @@ class DatasetTool(BaseTool):
 
             hit_callback = DatasetIndexToolCallbackHandler(self.dataset.id)
             hit_callback.on_tool_end(documents)
-        return str("\n".join([document.page_content for document in documents]))
+        return str("\n".join([document.page_content for document in documents[:self.k]]))
 
     async def _arun(self, tool_input: str) -> str:
         model_credentials = LLMBuilder.get_model_credentials(
